@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Server 10",
+    "ip_address": "192.168.30.135",
+    "port": 3389,
+    "username": "stu-aov1",
+    "password": "123",
+    "domain": "",
+    "desktop_width": 1920,
+    "desktop_height": 1080,
+    "color_depth": 32,
+    "use_h264": true,
+    "bitrate_kbps": 6500,
+    "network_type": 4,
+    "smart_sizing": true,
+    "enable_nla": true,
+    "compress": true,
+    "audio_mode": 1
+  }
+]
