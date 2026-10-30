@@ -5,7 +5,6 @@ __pycache__/
 
 # PyInstaller / Build outputs
 build/
-dist/
 *.spec.bak
 
 # Log files
