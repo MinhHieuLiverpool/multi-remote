@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Build outputs
+build/
+dist/
+*.spec.bak
+
+# Log files
+*.log
+app.log
+
+# Temporary RDP files
+*.rdp
+
+# IDE and OS files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

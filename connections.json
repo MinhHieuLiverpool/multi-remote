@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Server 10",
+    "ip_address": "192.168.1.110",
+    "port": 3389,
+    "username": "administrator",
+    "password": "",
+    "domain": "",
+    "desktop_width": 1920,
+    "desktop_height": 1080,
+    "color_depth": 32,
+    "use_h264": true,
+    "bitrate_kbps": 15000,
+    "network_type": 6,
+    "smart_sizing": true,
+    "enable_nla": true,
+    "compress": true
+  }
+]
