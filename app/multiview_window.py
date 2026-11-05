@@ -2,6 +2,8 @@
 MultiView Window - Displays multiple RDP connections and Live Screen Captures in a customizable grid.
 Click slot -> Slot fills 100% of the entire app window. Double click slot (or Backspace / ESC) -> Return to grid.
 """
+import os
+import json
 import logging
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -157,10 +159,40 @@ class MultiViewCell(QFrame):
         self._update_style(False)
         self.capture_removed.emit(self.slot_index)
 
+    def set_header_text(self, text: str):
+        self._header.setText(text)
+
+    def set_master(self, is_master: bool):
+        self._is_master = is_master
+        if is_master:
+            self.setStyleSheet("""
+                QFrame#mvCell, QFrame#mvCellActive {
+                    background-color: #172033;
+                    border: 2px solid #f59e0b;
+                    border-radius: 6px;
+                }
+            """)
+            self._header.setStyleSheet(
+                "background-color: #f59e0b; color: #000000; font-weight: 900; font-size: 11px; padding: 4px 8px; "
+                "border-top-left-radius: 4px; border-top-right-radius: 4px;"
+            )
+        else:
+            self._header.setStyleSheet(MULTIVIEW_HEADER_STYLE)
+            self._update_style(self._is_active)
+
     def is_empty(self) -> bool:
         return self.rdp_widget is None and self.capture_widget is None
 
     def _update_style(self, active: bool):
+        if getattr(self, '_is_master', False):
+            self.setStyleSheet("""
+                QFrame#mvCell, QFrame#mvCellActive {
+                    background-color: #172033;
+                    border: 2px solid #f59e0b;
+                    border-radius: 6px;
+                }
+            """)
+            return
         self.setObjectName("mvCellActive" if active else "mvCell")
         self.setStyleSheet(MULTIVIEW_CELL_STYLE)
 
@@ -199,6 +231,7 @@ class MultiViewWindow(QMainWindow):
         self._setup_ui()
         self._populate_grid()
         self._assign_connections()
+        self.sync_from_custom_multiview()
 
     def _setup_ui(self):
         self.setWindowTitle("MultiView - Remote Desktop & Screen Grid")
@@ -235,6 +268,13 @@ class MultiViewWindow(QMainWindow):
         )
         tb_layout.addWidget(self._grid_info)
 
+        self._master_indicator = QLabel("Master: Ô 4")
+        self._master_indicator.setStyleSheet(
+            "background-color: #f59e0b; color: #042017; font-size: 11px; font-weight: 900; "
+            "padding: 4px 10px; border-radius: 4px;"
+        )
+        tb_layout.addWidget(self._master_indicator)
+
         tb_layout.addStretch()
 
         lbl = QLabel("Layout:")
@@ -254,6 +294,15 @@ class MultiViewWindow(QMainWindow):
         tb_layout.addWidget(self._layout_combo)
 
         tb_layout.addSpacing(10)
+
+        # Đồng bộ từ Custom MultiView
+        self._sync_custom_btn = QPushButton("🔄 Đồng bộ Custom MultiView")
+        self._sync_custom_btn.setToolTip("Gán toàn bộ source (Capture, RDP, Master) theo Custom MultiView")
+        self._sync_custom_btn.setStyleSheet(BTN_BLUE)
+        self._sync_custom_btn.setCursor(Qt.PointingHandCursor)
+        self._sync_custom_btn.setFixedHeight(36)
+        self._sync_custom_btn.clicked.connect(self.sync_from_custom_multiview)
+        tb_layout.addWidget(self._sync_custom_btn)
 
         # Add Capture Button
         self._add_capture_btn = QPushButton("Add Capture")
@@ -349,6 +398,76 @@ class MultiViewWindow(QMainWindow):
             if i < len(self._cells) and i not in self._capture_widgets:
                 self._cells[i].assign_connection(conn)
                 conn.slot_index = i
+
+    def sync_from_custom_multiview(self):
+        """
+        Focus/Sync source theo Custom MultiView:
+        - Đọc cấu hình từ custom_multiview_config.json (hoặc khởi tạo chuẩn).
+        - Gán từng source (Capture monitor, RDP connection, Master) vào 16 ô 4x4.
+        """
+        cfg_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "custom_multiview_config.json")
+        slots_info = []
+        master_id = "Ô 4"
+
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                master_id = cfg.get("master_slot_id", "Ô 4")
+                for s in cfg.get("slots", []):
+                    if s.get("is_split", False):
+                        for sub in s.get("sub_slots", []):
+                            slots_info.append(sub)
+                    else:
+                        slots_info.append(s)
+            except Exception as e:
+                logger.error(f"Error reading custom multiview config: {e}")
+
+        if not slots_info:
+            # Mặc định theo cấu hình user: Ô 1 (4 ô), Ô 2 (4 ô), Ô 3 (4 ô), Ô 4 (1 ô Master)
+            for i in range(1, 4):
+                for j in range(1, 5):
+                    slots_info.append({"slot_id": f"Ô {i}.{j}", "source_type": "empty", "source_data": None})
+            slots_info.append({"slot_id": "Ô 4", "source_type": "empty", "source_data": None, "is_master": True})
+
+        # Update Master indicator
+        if hasattr(self, '_master_indicator'):
+            self._master_indicator.setText(f"Master: {master_id}")
+
+        for idx, s_info in enumerate(slots_info):
+            if idx >= len(self._cells):
+                break
+            cell = self._cells[idx]
+            slot_id = s_info.get("slot_id", f"Slot {idx + 1}")
+            stype = s_info.get("source_type", "empty")
+            sdata = s_info.get("source_data")
+            is_master = (slot_id == master_id) or s_info.get("is_master", False)
+
+            header_text = f" {slot_id}"
+            if is_master:
+                header_text += " ★ MASTER"
+
+            if stype == "capture" and sdata is not None:
+                try:
+                    screen_idx = int(sdata)
+                    header_text += f" • Monitor {screen_idx + 1}"
+                    cap = ScreenCaptureWidget(screen_index=screen_idx, fps=20)
+                    cell.set_capture_widget(cap, header_text)
+                    self._capture_widgets[idx] = cap
+                except Exception as e:
+                    logger.error(f"Error setting capture for slot {idx}: {e}")
+            elif stype == "connect" and sdata is not None:
+                conn = next((c for c in self._connections if getattr(c, 'id', '') == sdata or c.ip_address == sdata), None)
+                if conn:
+                    header_text += f" • {conn.display_name()}"
+                    cell.assign_connection(conn)
+                    self.connection_requested.emit(idx, conn)
+            else:
+                cell.set_header_text(header_text)
+
+            cell.set_master(is_master)
+
+        self.statusBar().showMessage(f"✓ Đã đồng bộ 16 ô theo Custom MultiView (Master: {master_id})", 4000)
 
     def _on_cell_single_click(self, slot_index: int):
         """Click on any slot in grid view immediately expands it to 100% full app window."""

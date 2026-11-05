@@ -13,6 +13,9 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
 
 from app.connection_panel import ConnectionCard
 from app.multiview_window import MultiViewWindow
+from app.custom_multiview import CustomMultiViewWindow
+from app.source_display import SourceDisplayWindow
+from app.shortcut_settings_dialog import ShortcutSettingsDialog
 from app.rdp_widget import RdpWidget
 from app.embedded_mstsc import EmbeddedMstscWidget
 from app.rdp_launcher import test_port_reachable, delete_credentials
@@ -72,6 +75,8 @@ class MainWindow(QMainWindow):
         self._cards = []
         self._rdp_widgets = {}
         self._multiview_window = None
+        self._custom_multiview_window = None
+        self._source_display_window = None
         self._setup_ui()
         self._setup_menu()
         self._load_saved_connections()
@@ -124,10 +129,16 @@ class MainWindow(QMainWindow):
         self._nav_connections.clicked.connect(lambda: self._set_nav("connections"))
         sb_layout.addWidget(self._nav_connections)
 
-        self._nav_multiview = QPushButton("Open MultiView")
+        self._nav_custom_multiview = QPushButton("Custom MultiView")
+        self._nav_custom_multiview.setStyleSheet(BTN_SIDEBAR)
+        self._nav_custom_multiview.setCursor(Qt.PointingHandCursor)
+        self._nav_custom_multiview.clicked.connect(self._open_custom_multiview)
+        sb_layout.addWidget(self._nav_custom_multiview)
+
+        self._nav_multiview = QPushButton("MultiView (4x4)")
         self._nav_multiview.setStyleSheet(BTN_SIDEBAR)
         self._nav_multiview.setCursor(Qt.PointingHandCursor)
-        self._nav_multiview.clicked.connect(self._open_multiview)
+        self._nav_multiview.clicked.connect(self._open_source_display)
         sb_layout.addWidget(self._nav_multiview)
 
         sb_layout.addSpacing(10)
@@ -298,17 +309,24 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Exit", self.close, "Alt+F4")
 
         view_menu = menubar.addMenu("&View")
-        view_menu.addAction("Open MultiView", self._open_multiview, "Ctrl+M")
+        view_menu.addAction("Custom MultiView (2x2)", self._open_custom_multiview, "Ctrl+Shift+M")
+        view_menu.addAction("Fixed MultiView (4x4)", self._open_multiview, "Ctrl+M")
+        view_menu.addSeparator()
+        view_menu.addAction("Shortcut Settings", self._open_shortcut_settings)
 
         help_menu = menubar.addMenu("&Help")
         help_menu.addAction("About", self._show_about)
 
     def _set_nav(self, page: str):
+        self._nav_connections.setStyleSheet(BTN_SIDEBAR)
+        self._nav_custom_multiview.setStyleSheet(BTN_SIDEBAR)
+        self._nav_multiview.setStyleSheet(BTN_SIDEBAR)
+
         if page == "connections":
             self._nav_connections.setStyleSheet(BTN_SIDEBAR_ACTIVE)
-            self._nav_multiview.setStyleSheet(BTN_SIDEBAR)
+        elif page == "custom_multiview":
+            self._nav_custom_multiview.setStyleSheet(BTN_SIDEBAR_ACTIVE)
         elif page == "multiview":
-            self._nav_connections.setStyleSheet(BTN_SIDEBAR)
             self._nav_multiview.setStyleSheet(BTN_SIDEBAR_ACTIVE)
 
     def _add_connection(self, connection: RdpConnectionInfo = None, scroll_to_end: bool = True):
@@ -557,10 +575,10 @@ class MainWindow(QMainWindow):
         for i in list(self._rdp_widgets.keys()):
             self._on_disconnect(i)
 
-    def _open_multiview(self):
-        if self._multiview_window:
-            self._multiview_window.activateWindow()
-            self._multiview_window.raise_()
+    def _open_custom_multiview(self):
+        if self._custom_multiview_window:
+            self._custom_multiview_window.activateWindow()
+            self._custom_multiview_window.raise_()
             return
 
         connections = []
@@ -569,18 +587,48 @@ class MainWindow(QMainWindow):
             self._connections[i] = conn
             connections.append(conn)
 
-        self._multiview_window = MultiViewWindow(connections)
-        self._multiview_window.connection_requested.connect(self._on_multiview_connect)
-        self._multiview_window.disconnection_requested.connect(self._on_multiview_disconnect)
-        self._multiview_window.closed.connect(self._on_multiview_closed)
+        self._custom_multiview_window = CustomMultiViewWindow(connections, self)
+        self._custom_multiview_window.closed.connect(self._on_custom_multiview_closed)
+        self._custom_multiview_window.show()
+        self._set_nav("custom_multiview")
+        self.statusBar().showMessage("Custom MultiView (2x2) window opened")
 
-        for idx, rdp in self._rdp_widgets.items():
-            if idx < 16:
-                self._multiview_window.set_rdp_widget(idx, rdp)
+    def _on_custom_multiview_closed(self):
+        self._custom_multiview_window = None
+        self._set_nav("connections")
+        self.statusBar().showMessage("Custom MultiView window closed")
 
-        self._multiview_window.show()
+    def _open_shortcut_settings(self):
+        dlg = ShortcutSettingsDialog(self)
+        dlg.exec_()
+
+    def _open_multiview(self):
+        """Legacy — giờ mở Source Display."""
+        self._open_source_display()
+
+    def _open_source_display(self):
+        """Mở cửa sổ hiển thị thuần source — không UI trên source."""
+        if self._source_display_window:
+            self._source_display_window.activateWindow()
+            self._source_display_window.raise_()
+            return
+
+        connections = []
+        for i, card in enumerate(self._cards):
+            conn = card.get_connection_info()
+            self._connections[i] = conn
+            connections.append(conn)
+
+        self._source_display_window = SourceDisplayWindow(connections, self)
+        self._source_display_window.closed.connect(self._on_source_display_closed)
+        self._source_display_window.show()
         self._set_nav("multiview")
-        self.statusBar().showMessage("MultiView window opened")
+        self.statusBar().showMessage("Source Display — Hiển thị thuần source theo Custom MultiView")
+
+    def _on_source_display_closed(self):
+        self._source_display_window = None
+        self._set_nav("connections")
+        self.statusBar().showMessage("Source Display closed")
 
     def _on_multiview_connect(self, slot_index: int, connection: RdpConnectionInfo):
         self._on_connect(slot_index)
@@ -666,6 +714,8 @@ class MainWindow(QMainWindow):
         self._save_connections()
         if self._multiview_window:
             self._multiview_window.close()
+        if self._custom_multiview_window:
+            self._custom_multiview_window.close()
         for idx in list(self._rdp_widgets.keys()):
             try:
                 self._rdp_widgets[idx].disconnect_rdp()

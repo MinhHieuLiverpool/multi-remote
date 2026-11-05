@@ -8,7 +8,15 @@ A modern, high-performance Windows Remote Desktop (RDP) management tool with an 
 
 - **Dark IoT Modern Dashboard**: High-contrast, sleek UI built with PyQt5.
 - **Multi-Server Preset Management**: Easily save, configure, and connect to multiple remote servers (IP, custom RDP Port, Domain, Resolution, Color Depth, Bitrate, H.264 / AVC acceleration).
-- **MultiView Grid (Up to 16 Slots / 4x4)**:
+- **Custom MultiView (Recursive 2x2 Sub-Grid)**:
+  - Initial 2x2 grid (4 slots).
+  - Click any slot's `⊞ Split` button to subdivide that slot into an internal 2x2 sub-grid (4 smaller slots).
+  - Click `⊟ Merge / Unsplit` to collapse sub-grids back into a single slot.
+  - Dedicated **Source Selector** dropdown on every slot (RDP Server or Screen Monitor).
+  - **MASTER Slot**: Prominently highlighted master monitor with golden border & badge.
+  - **Quick Hotkey Switcher**: Press `1` to `9` (or custom configured keys) to immediately send/swap any slot's source to the Master Monitor!
+- **Shortcut Settings**: Customizable keybindings dialog to configure slot-to-master shortcuts with presets (Number keys, Function keys F1-F12, Ctrl/Alt modifiers).
+- **Fixed MultiView Grid (Up to 16 Slots / 4x4)**:
   - Customizable grid layouts (1x1, 2x2, 3x3, 4x4, 2x3, custom).
   - Embeds real Windows RDP sessions directly inside grid slots without popup clutter.
   - **Single-Click Slot Zoom**: Click any slot to expand it to 100% full application window.
